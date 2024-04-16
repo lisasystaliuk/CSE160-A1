@@ -9,6 +9,7 @@
     <canvas id="webgl" width="400" height="400">
     Please use a browser that supports "canvas"
     </canvas>
+    <p id="numdot"> XXX</p>
     <div>
       <button id="clearCanvas">Clear Canvas</button>
     </div>
@@ -16,7 +17,9 @@
       <label for="drawingMode">Driving Modes: </label><br>
       <button id="modePoint">Squares</button>
       <button id="modeTriangle">Triangles</button>
-      <button id="modeTriangle">Circles</button>
+      <button id="modeCircle">Circles</button>
+      <button id="drawPineappleButton">Draw Pineapple</button>
+
     </div>
     <div>
       <label for="shapeColor">Shape Color: </label><br>
@@ -29,9 +32,9 @@
   </div>
   <div>
     <label for="sizeSlider">Shape Size: </label>
-    <input type="range" id="sizeSlider" min="5" max="40" value="10" step="1">
-    <label for="countSlider">(Circles) Segment Count: </label>
-    <input type="range" id="countSlider" min="5" max="40" value="10" step="1">
+    <input type="range" id="sizeSlider" min="5" max="40" value="5" step="1">
+    <label for="segmentsSlider">(Circles) Segment Count:</label>
+    <input type="range" id="segmentsSlider" name="segmentsSlider" min="10" max="100" value="10">
   </div>
     <script src="../lib/webgl-utils.js"></script>
     <script src="../lib/webgl-debug.js"></script>
@@ -39,5 +42,6 @@
     <script src="ColoredPoints.js"></script>
     <script src="Point.js"></script>
     <script src="Triangle.js"></script>
+    <script src="Circle.js"></script>
   </body>
 </html>

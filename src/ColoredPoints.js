@@ -65,13 +65,52 @@ function connectVariablesToGLSL()
     return;
   }
 }
+function addActionsforHtmlUI()
+{
+  document.getElementById("clearCanvas").onclick = function() {
+    // clear the shapes list
+    shapesList = [];
+    // redraw the canvas
+    renderAllShapes();
+  };
+  document.getElementById('modePoint').onclick = function() {
+    currentMode = POINT;
+  };
+
+  document.getElementById('modeTriangle').onclick = function() {
+    currentMode = TRIANGLE;
+  };
+  document.getElementById('modeCircle').onclick = function() {
+    currentMode = CIRCLE;
+  };
+  document.getElementById("redSlider").oninput = updateColor;
+  document.getElementById("greenSlider").oninput = updateColor;
+  document.getElementById("blueSlider").oninput = updateColor;
+
+  document.getElementById("sizeSlider").oninput = function() {
+    currentSize = parseFloat(this.value);
+  };
+  document.getElementById("segmentsSlider").oninput = function() {
+    currentSegments = parseInt(this.value); // Update the global variable controlling segments
+  };
+  document.getElementById("drawPineappleButton").onclick = function() {
+    currentMode = MY_DRAW;
+};
+}
+const POINT = 0;
+const TRIANGLE = 1;
+const CIRCLE = 3;
+const MY_DRAW = 4;
 let currentColor = [1.0, 1.0, 1.0, 1.0]; // Default color: white
 let currentSize = 10;
 let shapesList = [];
-let currentMode = 'point'; // Can be 'point' or 'triangle' or circle
+let currentMode = POINT; // Can be POINT or TRIANGLE or CIRCLE
+let currentSegments = 10;
+
 function main() {
   setupWebGL();
   connectVariablesToGLSL();
+  addActionsforHtmlUI();
 
   // Register function (event handler) to be called on a mouse press
   // canvas.onmousedown = click;
@@ -91,30 +130,6 @@ function main() {
 
   // Clear <canvas>
   gl.clear(gl.COLOR_BUFFER_BIT);
-
-  document.getElementById("clearCanvas").onclick = function() {
-    // clear the shapes list
-    shapesList = [];
-    // redraw the canvas
-    renderAllShapes();
-  };
-  document.getElementById('modePoint').onclick = function() {
-    currentMode = 'point';
-  };
-
-  document.getElementById('modeTriangle').onclick = function() {
-    currentMode = 'triangle';
-  };
-  // document.getElementById('modeCircle').onclick = function() {
-  //   currentMode = 'circle';
-  // };
-  document.getElementById("redSlider").oninput = updateColor;
-  document.getElementById("greenSlider").oninput = updateColor;
-  document.getElementById("blueSlider").oninput = updateColor;
-
-  document.getElementById("sizeSlider").oninput = function() {
-    currentSize = parseFloat(this.value);
-  };
 }
 
 function updateColor() {
@@ -129,28 +144,20 @@ var g_colors = [];  // The array to store the color of a point
 var g_sizes = [];
 function click(ev) {
   [x,y] = convertCoordinatesEventToGL(ev);
-
-  if (currentMode === 'point') {
+  if (currentMode == POINT) {
     let point = new Point([x, y], currentColor.slice(), currentSize);
     shapesList.push(point);
-  } else if (currentMode === 'triangle') {
-    // You will need to define how to get the vertices for the triangle
-    let triangleVertices = [x, y, x + 0.1, y - 0.1, x - 0.1, y - 0.1];
-    let triangle = new Triangle(triangleVertices, currentColor.slice());
+  } else if (currentMode == TRIANGLE) {
+    let triangle = new Triangle([x,y], currentColor.slice(), currentSize);
     shapesList.push(triangle);
   }
-  // else if(currentMode === 'circle') {
-  //   let triangle = new Triangle(triangleVertices, currentColor.slice());
-  //   shapesList.push(triangle);
-  // }
-  // // Store the coordinates to g_points array
-  // g_points.push([x, y]);
-  // g_sizes.push(currentSize);
-  // // Use the currentColor for the color of the clicked point
-  // g_colors.push(currentColor.slice()); // slice to copy the currentColor array
-  // Create a new Point object with the current settings and add it to shapesList
-  // let point = new Point([x, y], currentColor.slice(), currentSize);
-  // shapesList.push(point);
+  else if(currentMode == CIRCLE) {
+    let circle = new Circle([x,y], currentColor.slice(), currentSize, currentSegments);
+    shapesList.push(circle);
+  }
+  else if(currentMode == MY_DRAW) {
+    drawPineapple();
+  }
   renderAllShapes();
 }
 function convertCoordinatesEventToGL(ev) {
@@ -167,26 +174,100 @@ function renderAllShapes()
   let startTime = performance.now();
   // Clear <canvas>
   gl.clear(gl.COLOR_BUFFER_BIT);
-  
-  // var len = g_points.length;
-  // for(var i = 0; i < len; i++) {
-  //   var xy = g_points[i];
-  //   var rgba = g_colors[i];
-  //   var size = g_sizes[i];
-
-  //   // Pass the position of a point to a_Position variable
-  //   gl.vertexAttrib3f(a_Position, xy[0], xy[1], 0.0);
-  //   // Pass the color of a point to u_FragColor variable
-  //   gl.uniform4f(u_FragColor, rgba[0], rgba[1], rgba[2], rgba[3]);
-  //   // Set the size for the point
-  //   gl.uniform1f(u_Size, size);
-  //   // Draw
-  //   gl.drawArrays(gl.POINTS, 0, 1);
-  // }
-  // Iterate over shapesList and call render on each Point
-  shapesList.forEach((shape) => {
-    shape.render(gl);
-  });
-  let endTime = performance.now();
+  var len = shapesList.length;
+  for(var i = 0; i < len; i++) {
+    shapesList[i].render();
+  }
+  var duration = performance.now() - startTime;
+  sendTextToHTML("numdot: "+ len + " ms: " + Math.floor(duration) + " fps: " + Math.floor(10000/duration)/10, "numdot");
   // console.log(`Render time: ${endTime - startTime} milliseconds`);
 }
+function sendTextToHTML(text, htmlID)
+{
+  var htmlElm = document.getElementById(htmlID);
+  if(!htmlElm) {
+    console.log("Failed to get " + htmlID + " from HTML");
+    return;
+  }
+  htmlElm.innerHTML = text;
+}
+function drawPineapple() {
+  // shapesList = []; // Clear the current list of shapes to prepare for the new drawing.
+
+  // // Pineapple body with different shades of orange
+  // const bodyColor = [
+  //     [1.0, 0.5, 0.0, 1.0], // Light orange
+  //     [1.0, 0.6, 0.0, 1.0], // Medium orange
+  //     [1.0, 0.4, 0.0, 1.0]  // Dark orange
+  // ];
+  // let baseX = 0, baseY = -0.5; // Starting point of the pineapple body
+  // let segmentHeight = 0.05, maxWidth = 0.3;
+
+  // // Draw triangles for the body
+  // for (let i = 0; i < 15; i++) {
+  //     let width = maxWidth * (1 - Math.abs(i - 7.5) / 10);
+  //     let color = bodyColor[i % bodyColor.length];
+  //     shapesList.push(new Triangle([baseX, baseY + i * segmentHeight, baseX + width, baseY + (i + 1) * segmentHeight, baseX - width, baseY + (i + 1) * segmentHeight], color));
+  // }
+
+  // // Pineapple leaves with shades of green
+  // const leafColor = [0.0, 0.5, 0.0, 1.0];
+  // let leafHeight = 0.1, leafWidth = 0.1;
+  // let leafStartY = baseY + 15 * segmentHeight;
+
+  // // Draw triangles for the leaves
+  // for (let i = 0; i < 5; i++) {
+  //     shapesList.push(new Triangle([baseX, leafStartY + i * leafHeight, baseX + leafWidth, leafStartY + i * leafHeight - leafHeight / 2, baseX - leafWidth, leafStartY + i * leafHeight - leafHeight / 2], leafColor));
+  // }
+
+  // renderAllShapes();
+
+  var height = 0.1; // Triangle height
+  var baseWidth = 0.2; // Width of the triangle base
+
+  // Defining vertices for an isosceles triangle
+  var vertices = [
+      0, height,          // Top vertex (middle top)
+      -baseWidth / 2, 0,  // Bottom left vertex
+      baseWidth / 2, 0    // Bottom right vertex
+  ];
+
+  // Set the color for the triangle
+  gl.uniform4f(u_FragColor, 1.0, 0.5, 0.0, 1.0); // Orange color
+
+  // Call drawTriangle with correct vertices
+  drawPinSegm();
+
+  // Refresh the canvas
+  renderAllShapes();
+
+}
+function drawPinSegm() {
+  var vertices = new Float32Array([
+    0.0,  0.5,  // Top vertex
+   -0.5, -0.5,  // Left vertex
+    0.5, -0.5   // Right vertex
+  ]);
+
+  // Create a buffer object
+  var vertexBuffer = gl.createBuffer();
+  if (!vertexBuffer) {
+    alert('Failed to create the buffer object');
+    return;
+  }
+
+  // Bind the buffer object to target
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+  // Write data into the buffer object
+  gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+  
+  gl.vertexAttribPointer(a_Position, 2, gl.FLOAT, false, 0, 0);
+  gl.enableVertexAttribArray(a_Position);
+
+  // Set the color
+  gl.uniform4f(u_FragColor, 1.0, 0.5, 0.0, 1.0);  // Orange color
+
+  // Draw the triangle
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+}
+
