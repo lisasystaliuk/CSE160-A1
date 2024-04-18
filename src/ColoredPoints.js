@@ -3,6 +3,7 @@
 var VSHADER_SOURCE =`
   attribute vec4 a_Position;
   uniform float u_Size;
+  uniform vec4 u_FragColor;
   void main() {
     gl_Position = a_Position;
     gl_PointSize = u_Size;
@@ -93,14 +94,17 @@ function addActionsforHtmlUI()
   document.getElementById("segmentsSlider").oninput = function() {
     currentSegments = parseInt(this.value); // Update the global variable controlling segments
   };
-  document.getElementById("drawPineappleButton").onclick = function() {
-    currentMode = MY_DRAW;
-};
+  document.getElementById("drawPineappleButton").onclick = drawPineapple;
+  // document.getElementById("drawSnowflakeButton").addEventListener("click", drawSnowflake);
+  document.getElementById('drawSnowflakeButton').onclick = function() {
+    currentMode = SNOWFLAKE;
+  };
 }
 const POINT = 0;
 const TRIANGLE = 1;
 const CIRCLE = 3;
 const MY_DRAW = 4;
+const SNOWFLAKE = 5;
 let currentColor = [1.0, 1.0, 1.0, 1.0]; // Default color: white
 let currentSize = 10;
 let shapesList = [];
@@ -144,7 +148,12 @@ var g_colors = [];  // The array to store the color of a point
 var g_sizes = [];
 function click(ev) {
   [x,y] = convertCoordinatesEventToGL(ev);
-  if (currentMode == POINT) {
+  if (currentMode == SNOWFLAKE) {
+    let snowflake = new Snowflake([x, y], currentSize, currentColor.slice()); // Drawing white snowflakes
+    shapesList.push(snowflake);
+    renderAllShapes();
+  }
+  else if (currentMode == POINT) {
     let point = new Point([x, y], currentColor.slice(), currentSize);
     shapesList.push(point);
   } else if (currentMode == TRIANGLE) {
@@ -156,8 +165,23 @@ function click(ev) {
     shapesList.push(circle);
   }
   else if(currentMode == MY_DRAW) {
-    drawPineapple();
-  }
+      // Write the positions of vertices to a vertex shader
+    var n = initVertexBuffers(gl);
+    if (n < 0) {
+      console.log('Failed to set the positions of the vertices');
+      return;
+    }
+
+    // Specify the color for clearing <canvas>
+    gl.clearColor(0, 0, 0, 1);
+
+    // Clear <canvas>
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
+    // Draw the rectangle
+    gl.drawArrays(gl.TRIANGLES, 0, n);
+    // renderAllShapes();
+    }
   renderAllShapes();
 }
 function convertCoordinatesEventToGL(ev) {
@@ -191,83 +215,178 @@ function sendTextToHTML(text, htmlID)
   }
   htmlElm.innerHTML = text;
 }
-function drawPineapple() {
-  // shapesList = []; // Clear the current list of shapes to prepare for the new drawing.
-
-  // // Pineapple body with different shades of orange
-  // const bodyColor = [
-  //     [1.0, 0.5, 0.0, 1.0], // Light orange
-  //     [1.0, 0.6, 0.0, 1.0], // Medium orange
-  //     [1.0, 0.4, 0.0, 1.0]  // Dark orange
-  // ];
-  // let baseX = 0, baseY = -0.5; // Starting point of the pineapple body
-  // let segmentHeight = 0.05, maxWidth = 0.3;
-
-  // // Draw triangles for the body
-  // for (let i = 0; i < 15; i++) {
-  //     let width = maxWidth * (1 - Math.abs(i - 7.5) / 10);
-  //     let color = bodyColor[i % bodyColor.length];
-  //     shapesList.push(new Triangle([baseX, baseY + i * segmentHeight, baseX + width, baseY + (i + 1) * segmentHeight, baseX - width, baseY + (i + 1) * segmentHeight], color));
-  // }
-
-  // // Pineapple leaves with shades of green
-  // const leafColor = [0.0, 0.5, 0.0, 1.0];
-  // let leafHeight = 0.1, leafWidth = 0.1;
-  // let leafStartY = baseY + 15 * segmentHeight;
-
-  // // Draw triangles for the leaves
-  // for (let i = 0; i < 5; i++) {
-  //     shapesList.push(new Triangle([baseX, leafStartY + i * leafHeight, baseX + leafWidth, leafStartY + i * leafHeight - leafHeight / 2, baseX - leafWidth, leafStartY + i * leafHeight - leafHeight / 2], leafColor));
-  // }
-
-  // renderAllShapes();
-
-  var height = 0.1; // Triangle height
-  var baseWidth = 0.2; // Width of the triangle base
-
-  // Defining vertices for an isosceles triangle
-  var vertices = [
-      0, height,          // Top vertex (middle top)
-      -baseWidth / 2, 0,  // Bottom left vertex
-      baseWidth / 2, 0    // Bottom right vertex
-  ];
-
-  // Set the color for the triangle
-  gl.uniform4f(u_FragColor, 1.0, 0.5, 0.0, 1.0); // Orange color
-
-  // Call drawTriangle with correct vertices
-  drawPinSegm();
-
-  // Refresh the canvas
-  renderAllShapes();
-
-}
-function drawPinSegm() {
-  var vertices = new Float32Array([
-    0.0,  0.5,  // Top vertex
-   -0.5, -0.5,  // Left vertex
-    0.5, -0.5   // Right vertex
-  ]);
-
+function drawTriangle(vertices, color) {
   // Create a buffer object
   var vertexBuffer = gl.createBuffer();
   if (!vertexBuffer) {
-    alert('Failed to create the buffer object');
-    return;
+      console.log('Failed to create the buffer object');
+      return;
   }
-
   // Bind the buffer object to target
   gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
   // Write data into the buffer object
-  gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
-  
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+
+  // Get the attribute location, assign buffer and enable
+  var a_Position = gl.getAttribLocation(gl.program, 'a_Position');
   gl.vertexAttribPointer(a_Position, 2, gl.FLOAT, false, 0, 0);
   gl.enableVertexAttribArray(a_Position);
 
-  // Set the color
-  gl.uniform4f(u_FragColor, 1.0, 0.5, 0.0, 1.0);  // Orange color
+  gl.useProgram(shaderProgram);
+  // Set the color for the triangle
+  gl.uniform4fv(u_FragColor, new Float32Array(color));
 
   // Draw the triangle
-  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  gl.drawArrays(gl.TRIANGLES, 0, 3); // 3 vertices per triangle
 }
+function drawPineapple() {
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.viewport(0, 0, canvas.width, canvas.height);  // Ensure the viewport is correctly set
 
+  const rows = 6;
+  const scale = 1.5;
+  const xoffset = 0.1 * scale;
+  const shift = 0.2 * scale;
+  const tX = [-0.1 * scale, 0, 0.1 * scale];
+  const tY = [-0.4 * scale, -0.3 * scale, -0.4 * scale];
+  const orange = [1.0, 0.65, 0.0, 1.0];
+  const yellow = [1.0, 1.0, 0.0, 1.0];
+  const orellow = [1.0, 0.825, 0, 1.0]
+  var vertices  = [];
+  var color = [];
+  var yOffset;
+  for (let i = 0; i < rows; i++) {
+      yOffset = 0.1 * i * scale;
+      const currentXoffset = (i % 2 === 0) ? 0 : -xoffset;
+      vertices = [
+          tX[0] + currentXoffset, tY[0] + yOffset,
+          tX[1] + currentXoffset, tY[1] + yOffset,
+          tX[2] + currentXoffset, tY[2] + yOffset
+      ];
+      if(i != rows -1)
+      {
+        // First triangle vertices (orange)
+        color = orange;
+        vertices = [tX[1]-shift + currentXoffset, tY[1] + yOffset,
+        tX[0] + currentXoffset, tY[0] + yOffset,
+        tX[1] + currentXoffset, tY[1] + yOffset];
+        gl.uniform4fv(u_FragColor, new Float32Array(color));
+        drawTriangle(vertices);
+      }
+      else
+      {
+        // Second triangle vertices (yellow)
+        color = yellow;
+        vertices = [tX[0] + currentXoffset+ shift, tY[0] + yOffset, 
+        tX[1] + currentXoffset + shift, tY[1] + yOffset,
+        tX[2] + currentXoffset + shift, tY[2] + yOffset];
+        gl.uniform4fv(u_FragColor, new Float32Array(color));
+        drawTriangle(vertices);
+      }
+      // Second triangle vertices (yellow)
+      color = yellow;
+      vertices = [tX[0] + currentXoffset, tY[0] + yOffset, 
+      tX[1] + currentXoffset, tY[1] + yOffset,
+      tX[2] + currentXoffset, tY[2] + yOffset];
+      gl.uniform4fv(u_FragColor, new Float32Array(color));
+      drawTriangle(vertices);
+      // Third triangle vertices (orange)
+      color = orange;
+      vertices = [tX[1] + currentXoffset, tY[1] + yOffset,
+      tX[2] + currentXoffset, tY[2] + yOffset,
+      tX[1] + shift + currentXoffset, tY[1] + yOffset];
+      gl.uniform4fv(u_FragColor, new Float32Array(color));
+      drawTriangle(vertices);
+      if (i != 0 && i != rows - 1) {
+          var extraXOffset = currentXoffset + (i % 2 == 0 ? -shift : shift);
+          // Fourth triangle (yellow)
+          color = yellow;
+          vertices = [tX[0] + extraXOffset, tY[0] + yOffset,
+          tX[1] + extraXOffset, tY[1] + yOffset,
+          tX[2] + extraXOffset, tY[2] + yOffset];
+          gl.uniform4fv(u_FragColor, new Float32Array(color));
+          drawTriangle(vertices);
+          if(i % 2 == 1)
+          {   
+            color = orange;
+            vertices = [tX[1] + extraXOffset, tY[1] + yOffset,
+            tX[2] + extraXOffset, tY[2] + yOffset,
+            tX[1] + shift + extraXOffset, tY[1] + yOffset];
+            gl.uniform4fv(u_FragColor, new Float32Array(color));
+            drawTriangle(vertices);
+          }
+          else 
+          {
+            color = yellow;
+            vertices = [tX[0] + extraXOffset+ 2*shift, tY[0] + yOffset, 
+            tX[1] + extraXOffset+ 2*shift, tY[1] + yOffset,
+            tX[2] + extraXOffset+ 2*shift, tY[2] + yOffset];
+            gl.uniform4fv(u_FragColor, new Float32Array(color));
+            drawTriangle(vertices);
+            if(i == 2)
+            {
+              color = orellow;
+              vertices = [tX[1] + extraXOffset, tY[1] + yOffset,
+              tX[2] + extraXOffset -shift, tY[2] + yOffset,
+              tX[2] + extraXOffset - shift, tY[2] + 2*yOffset];
+              gl.uniform4fv(u_FragColor, new Float32Array(color));
+              drawTriangle(vertices);
+              color = orellow;
+              vertices = [tX[1] + extraXOffset+ shift, tY[1] + 2*yOffset,
+              tX[2] + extraXOffset + 2*shift, tY[2] + yOffset,
+              tX[2] + extraXOffset + 2*shift, tY[2] + 2*yOffset];
+              gl.uniform4fv(u_FragColor, new Float32Array(color));
+              drawTriangle(vertices);
+            
+            }
+          }
+        }
+      console.log('Drawing triangle with vertices:', vertices, 'and color:', color);
+  }
+  var startX = tX[0];
+  var startY = tY[0]+yOffset+0.15;
+  var endX = tX[2];
+  var endY = tY[2]+yOffset+ 0.15;
+  var startColor = 0.3
+  var steps = (1-startColor)/0.1;
+  var leaf_color = [0, 0.3, 0.0, 1.0];
+  color = leaf_color;
+  vertices = [startX, startY,
+    0, 1,
+    endX, endY];
+  gl.uniform4fv(u_FragColor, new Float32Array(color));
+  drawTriangle(vertices);
+  endX = 0;
+  for(let i = 1; i <= steps; i++) {
+    color[1] = startColor+0.1*i
+    vertices = [startX, startY,
+      -0.1*i, 1-0.1*i,
+      endX, endY];
+    gl.uniform4fv(u_FragColor, new Float32Array(color));
+    drawTriangle(vertices);
+    vertices = [startX+shift, startY,
+      0.1*i, 1-0.1*i,
+      endX, endY];
+    gl.uniform4fv(u_FragColor, new Float32Array(color));
+    drawTriangle(vertices);
+  }
+}
+function drawSnowflake() {
+  const points = 6; // Number of points in the snowflake
+  const layers = 3; // Number of layers of detail in each arm
+  const angleStep = Math.PI / points;
+
+  gl.clear(gl.COLOR_BUFFER_BIT); // Clear the canvas
+
+  for (let i = 0; i < points; i++) {
+      let angle = i * 2 * angleStep;
+      for (let j = 1; j <= layers; j++) {
+          let armLength = j / layers * 0.2; // Scale the length of each arm layer
+          let x1 = armLength * Math.cos(angle);
+          let y1 = armLength * Math.sin(angle);
+          let x2 = armLength * Math.cos(angle + angleStep);
+          let y2 = armLength * Math.sin(angle + angleStep);
+          drawTriangle([0, 0, x1, y1, x2, y2]);
+      }
+  }
+}
